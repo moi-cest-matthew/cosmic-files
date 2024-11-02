@@ -4,13 +4,26 @@ empty-folder-hidden = Pasta vazia (contém itens ocultos)
 no-results = Nenhum item encontrado
 filesystem = Sistema de arquivos
 home = Pasta pessoal
+networks = Redes
 notification-in-progress = Há operações de arquivo em andamento.
 trash = Lixeira
+recents = Recentes
 undo = Desfazer
+today = Hoje
+
+# Desktop view options
+desktop-view-options = Opções de visualização do desktop...
+show-on-desktop = Mostrar no desktop
+desktop-folder-content = Conteúdo da pasta do desktop
+mounted-drives = Dispositivos montados
+trash-folder-icon = Ícone da lixeira
+icon-size-and-spacing = Tamanho e espaçamento do ícone
+icon-size = Tamanho do ícone
 
 # List view
 name = Nome
 modified = Modificação
+trashed-on = Exclusão
 size = Tamanho
 
 # Dialogs
@@ -21,6 +34,9 @@ create-archive = Compactar arquivos
 ## Empty Trash Dialog
 empty-trash = Esvaziar lixeira
 empty-trash-warning = Tem certeza de que deseja apagar permanentemente todos os itens da lixeira?
+
+## Mount Error Dialog
+mount-error = Não foi possível acessar o dispositivo
 
 ## New File/Folder Dialog
 create-new-file = Criar novo arquivo
@@ -47,6 +63,10 @@ open-multiple-folders = Abrir várias pastas
 save = Salvar
 save-file = Salvar arquivo
 
+## Open With Dialog
+open-with-title = Como deseja abrir "{$name}"?
+browse-store = Procurar em {$store}
+
 ## Rename Dialog
 rename-file = Renomear arquivo
 rename-folder = Renomear pasta
@@ -62,6 +82,10 @@ apply-to-all = Aplicar a todos
 keep-both = Manter ambos
 skip = Ignorar
 
+## Set as Executable and Launch Dialog
+set-executable-and-launch = Marcar como executável e iniciar
+set-executable-and-launch-description = Deseja marcar "{$name}" como executável e iniciá-lo?
+set-and-launch = Marcar e iniciar
 
 ## Metadata Dialog
 owner = Proprietário
@@ -75,6 +99,31 @@ execute = Execução
 
 ## About
 git-description = Git commit {$hash} de {$date}
+
+## Add Network Drive
+add-network-drive = Adicionar local de rede
+connect = Conectar
+connect-anonymously = Conectar anonimamente
+connecting = Conectando...
+domain = Domínio
+enter-server-address = Insira o endereço do servidor
+network-drive-description =
+    Endereços de servidor incluem um prefixo de protocolo e um endereço.
+    Exemplos: ssh://192.168.0.1, ftp://[2001:db8::1]
+### Certifique-se de manter a vírgula que separa as colunas
+network-drive-schemes =
+    Protocolos disponíveis,Prefixo
+    AppleTalk,afp://
+    File Transfer Protocol,ftp:// ou ftps://
+    Network File System,nfs://
+    Server Message Block,smb://
+    SSH File Transfer Protocol,sftp:// ou ssh://
+    WebDav,dav:// ou davs://
+network-drive-error = Não foi possível acessar o local de rede
+password = Senha
+remember-password = Lembrar senha
+try-again = Tente novamente
+username = Usuário
 
 ## Operations
 edit-history = Editar histórico
@@ -112,6 +161,8 @@ extracted = Extraído {$items} {$items ->
         [one] item
         *[other] itens
     } de {$from} para {$to}
+setting-executable-and-launching = Marcando "{$name}" como executável e iniciando
+set-executable-and-launched = Marcado "{$name}" como executável e iniciado
 moving = Movendo {$items} {$items ->
         [one] item
         *[other] itens
@@ -130,7 +181,6 @@ restored = Restaurado {$items} {$items ->
         [one] item
         *[other] itens
     } da lixeira
-undo = Desfazer
 unknown-folder = pasta desconhecida
 
 ## Open with
@@ -142,15 +192,6 @@ show-details = Mostrar detalhes
 
 ## Settings
 settings = Configurações
-settings-tab = Aba
-settings-show-hidden = Mostrar arquivos ocultos
-default-view = Visualização padrão
-icon-size-list = Tamanho do ícone (lista)
-icon-size-grid = Tamanho do ícone (grade)
-sorting-name = Ordenar por
-direction = Classificar
-ascending = Crescente
-descending = Decrescente
 
 ### Appearance
 appearance = Aparência
@@ -172,6 +213,12 @@ remove-from-sidebar = Remover da barra lateral
 sort-by-name = Ordenar por nome
 sort-by-modified = Ordenar por data de modificação
 sort-by-size = Ordenar por tamanho
+sort-by-trashed = Ordernar por data de exclusão
+
+## Desktop
+change-wallpaper = Alterar papel de parede...
+desktop-appearance = Aparência do desktop...
+display-settings = Configurações da tela...
 
 # Menu
 
@@ -180,7 +227,6 @@ file = Arquivo
 new-tab = Nova aba
 new-window = Nova janela
 rename = Renomear...
-menu-show-details = Mostrar detalhes...
 close-tab = Fechar aba
 quit = Sair
 
@@ -200,5 +246,15 @@ grid-view = Exibição em grade
 list-view = Exibição em lista
 show-hidden-files = Mostrar arquivos ocultos
 list-directories-first = Listar pastas primeiro
+gallery-preview = Galeria
 menu-settings = Configurações...
 menu-about = Sobre o Arquivos do COSMIC...
+
+## Sort
+sort = Ordenar
+sort-a-z = A-Z
+sort-z-a = Z-A
+sort-newest-first = Mais novos primeiro
+sort-oldest-first = Mais antigos primeiro
+sort-smallest-to-largest = Do menor para o maior
+sort-largest-to-smallest = Do maior para o menor

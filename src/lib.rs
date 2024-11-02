@@ -1,10 +1,7 @@
 // Copyright 2023 System76 <info@system76.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-use cosmic::{
-    app::{Application, Settings},
-    iced::Limits,
-};
+use cosmic::{app::Settings, iced::Limits};
 use std::{env, fs, path::PathBuf, process};
 
 use app::{App, Flags};
@@ -24,13 +21,30 @@ mod operation;
 mod spawn_detached;
 use tab::Location;
 pub mod tab;
+mod thumbnailer;
+
+pub(crate) fn err_str<T: ToString>(err: T) -> String {
+    err.to_string()
+}
+
+pub fn desktop_dir() -> PathBuf {
+    match dirs::desktop_dir() {
+        Some(path) => path,
+        None => {
+            let path = home_dir().join("Desktop");
+            log::warn!("failed to locate desktop directory, falling back to {path:?}");
+            path
+        }
+    }
+}
 
 pub fn home_dir() -> PathBuf {
     match dirs::home_dir() {
         Some(home) => home,
         None => {
-            log::warn!("failed to locate home directory");
-            PathBuf::from("/")
+            let path = PathBuf::from("/");
+            log::warn!("failed to locate home directory, falling back to {path:?}");
+            path
         }
     }
 }
@@ -43,13 +57,6 @@ pub fn desktop() -> Result<(), Box<dyn std::error::Error>> {
     localize::localize();
 
     let (config_handler, config) = Config::load();
-
-    let locations = vec![
-        match dirs::desktop_dir() {
-            Some(path) => Location::Path(path),
-            None => Location::Path(home_dir()),
-        }
-    ];
 
     let mut settings = Settings::default();
     settings = settings.theme(config.app_theme.theme());
@@ -65,7 +72,7 @@ pub fn desktop() -> Result<(), Box<dyn std::error::Error>> {
         config_handler,
         config,
         mode: app::Mode::Desktop,
-        locations,
+        locations: vec![tab::Location::Path(desktop_dir())],
     };
     cosmic::app::run::<App>(settings, flags)?;
 

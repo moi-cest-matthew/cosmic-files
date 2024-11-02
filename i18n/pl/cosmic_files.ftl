@@ -4,13 +4,26 @@ empty-folder-hidden = Pusty katalog (z ukrytymi plikami)
 no-results = Brak wyników
 filesystem = System plików
 home = Katalog Domowy
+networks = Sieci
 notification-in-progress = Operacje na plikach w toku.
 trash = Kosz
+recents = Ubiegłe
 undo = Cofnij
+today = Dzisiaj
+
+# Desktop view options
+desktop-view-options = Opcje widoku pulpitu...
+show-on-desktop = Pokaż na Pulpicie
+desktop-folder-content = Zawartość katalogu Pulpit
+mounted-drives = Podpięte dyski
+trash-folder-icon = Ikona kosza
+icon-size-and-spacing = Rozmiar i rozstaw ikon
+icon-size = Rozmiar ikon
 
 # List view
 name = Nazwa
 modified = Zmodyfikowano
+trashed-on = Wyrzucono do kosza
 size = Rozmiar
 
 # Dialogs
@@ -47,6 +60,10 @@ open-multiple-folders = Otwórz wiele katalogów
 save = Zapisz
 save-file = Zapisz plik
 
+## Open With Dialog
+open-with-title = Czym chcesz otworzyć "{$name}"?
+browse-store = Przeglądaj {$store}
+
 # Rename Dialog
 rename-file = Zmień nazwę pliku
 rename-folder = Zmień nazwę katalogu
@@ -62,10 +79,48 @@ apply-to-all = Zastosuj do wszystkich
 keep-both = Zachowaj oba
 skip = Pomiń
 
+## Set as Executable and Launch Dialog
+set-executable-and-launch = Ustaw jako wykonywalny i uruchom
+set-executable-and-launch-description = Czu chcesz ustawić "{$name}" jako wykonywalny i uruchomić?
+set-and-launch = Ustaw i uruchom
+
+## Metadata Dialog
+owner = Właściciel
+group = Grupa
+other = Inni
+read = Odczyt
+write = Zapis
+execute = Wykonywanie
+
 # Context Pages
 
 ## About
 git-description = Git commit {$hash} z {$date}
+
+## Add Network Drive
+add-network-drive = Dodaj dysk sieciowy
+connect = Połącz
+connect-anonymously = Połącz anonimowo
+connecting = Łączenie...
+domain = Domena
+enter-server-address = Wprowadź adres serwera
+network-drive-description =
+    Adres serwera zawiera prefiks protokołu i adres.
+    Przykładowo: ssh://192.168.0.1, ftp://[2001:db8::1]
+### Make sure to keep the comma which separates the columns
+network-drive-schemes =
+    Dostępne protokoły,Prefiks
+    AppleTalk,afp://
+    File Transfer Protocol,ftp:// or ftps://
+    Network File System,nfs://
+    Server Message Block,smb://
+    SSH File Transfer Protocol,sftp:// or ssh://
+    WebDav,dav:// or davs://
+network-drive-error = Brak dostępu do dysku sieciowego
+password = Hasło
+remember-password = Zapamiętaj hasło
+try-again = Spróbuj ponownie
+username = Nazwa użytkownika
 
 ## Operations
 edit-history = Edytuj historię
@@ -121,13 +176,12 @@ renamed = Zmieniono nazwę {$from} na {$to}
 restoring = Przywracanie {$items} {$items ->
         [one] elementu
         *[other] elementów
-    } z {trash} 
+    } z {trash}
 restored = Przywrócono {$items} {$items ->
         [one] element
         [few] elementy
         *[other] elementów
-    } z {trash} 
-undo = Cofnij
+    } z {trash}
 unknown-folder = nieznany katalog
 
 ## Open with
@@ -139,15 +193,6 @@ show-details = Pokaż szczegóły
 
 ## Settings
 settings = Ustawienia
-settings-tab = Karta
-settings-show-hidden = Pokaż ukryte pliki
-default-view = Domyślny widok
-icon-size-list = Rozmiar ikon (lista)
-icon-size-grid = Rozmiar ikon (siatka)
-sorting-name = Uszereguj według
-direction = Kierunek
-ascending = Rosnąco
-descending = Malejąco
 
 ### Appearance
 appearance = Wygląd
@@ -170,6 +215,12 @@ remove-from-sidebar = Usuń z bocznego panelu
 sort-by-name = Uszereguj według nazwy
 sort-by-modified = Uszereguj według czasu modyfikacji
 sort-by-size = Uszereguj według rozmiaru
+sort-by-trashed = Uszereguj według czasu usunięcia
+
+## Desktop
+change-wallpaper = Zmień tapetę...
+desktop-appearance = Wygląd pulpitu...
+display-settings = Ustawienia wyświetlacza...
 
 # Menu
 
@@ -198,11 +249,7 @@ grid-view = Widok siatki
 list-view = Widok listy
 show-hidden-files = Pokaż ukryte pliki
 list-directories-first = Najpierw wyświetlaj katalogi
-menu-settings = Ustawienia...
-menu-about = O Plikach COSMIC...
-list-view = Widok listy
-show-hidden-files = Pokaż ukryte pliki
-list-directories-first = Najpierw wyświetlaj katalogi
+gallery-preview = Podgąd galerii
 menu-settings = Ustawienia...
 menu-about = O Plikach COSMIC...
 
@@ -212,5 +259,5 @@ sort-a-z = A-Z
 sort-z-a = Z-A
 sort-newest-first = Najpierw najnowsze
 sort-oldest-first = Najpierw najstarsze
-sort-smallest-to-largest = Od najmniejszego do największego
-sort-largest-to-smallest = Od największego do najmniejszego
+sort-smallest-to-largest = Najpierw najmniejsze
+sort-largest-to-smallest = Najpierw największe

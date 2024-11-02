@@ -4,10 +4,7 @@ use std::{
     fs,
     io::{self, Read, Write},
     path::{Path, PathBuf},
-    sync::{
-        atomic::{self, AtomicU64},
-        Arc,
-    },
+    sync::Arc,
 };
 use tokio::sync::{mpsc, Mutex};
 use walkdir::WalkDir;
@@ -15,14 +12,11 @@ use walkdir::WalkDir;
 use crate::{
     app::{ArchiveType, DialogPage, Message},
     config::IconSizes,
-    fl,
+    err_str, fl,
     mime_icon::mime_for_path,
+    spawn_detached::spawn_detached,
     tab,
 };
-
-fn err_str<T: ToString>(err: T) -> String {
-    err.to_string()
-}
 
 fn handle_replace(
     msg_tx: &Arc<Mutex<Sender<Message>>>,
@@ -93,6 +87,17 @@ fn handle_progress_state(
             fs_extra::dir::TransitProcessResult::ContinueOrAbort
         }
     }
+}
+
+fn get_directory_name(file_name: &str) -> &str {
+    const SUPPORTED_EXTENSIONS: [&str; 4] = [".tar.gz", ".tgz", ".tar", ".zip"];
+
+    for ext in &SUPPORTED_EXTENSIONS {
+        if file_name.ends_with(ext) {
+            return &file_name[..file_name.len() - ext.len()];
+        }
+    }
+    file_name
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -172,45 +177,226 @@ pub enum Operation {
     Restore {
         paths: Vec<trash::TrashItem>,
     },
+    /// Set executable and launch
+    SetExecutableAndLaunch {
+        path: PathBuf,
+    },
+}
+
+async fn copy_or_move(
+    paths: Vec<PathBuf>,
+    to: PathBuf,
+    moving: bool,
+    id: u64,
+    msg_tx: &Arc<Mutex<Sender<Message>>>,
+) -> Result<(), String> {
+    // Handle duplicate file names by renaming paths
+    let (paths, to): (Vec<_>, Vec<_>) = tokio::task::spawn_blocking(move || {
+        paths
+            .into_iter()
+            .zip(std::iter::repeat(to.as_path()))
+            .map(|(from, to)| {
+                if matches!(from.parent(), Some(parent) if parent == to) && !moving {
+                    // `from`'s parent is equal to `to` which means we're copying to the same
+                    // directory (duplicating files)
+                    let to = copy_unique_path(&from, &to);
+                    (from, to)
+                } else if let Some(name) = (from.is_file() || moving)
+                    .then(|| from.file_name())
+                    .flatten()
+                {
+                    let to = to.join(name);
+                    (from, to)
+                } else {
+                    (from, to.to_owned())
+                }
+            })
+            .unzip()
+    })
+    .await
+    .unwrap();
+
+    let msg_tx = msg_tx.clone();
+    tokio::task::spawn_blocking(move || -> fs_extra::error::Result<()> {
+        log::info!(
+            "{} {:?} to {:?}",
+            if moving { "Move" } else { "Copy" },
+            paths,
+            to
+        );
+        let total_paths = paths.len();
+        for (path_i, (from, mut to)) in paths.into_iter().zip(to.into_iter()).enumerate() {
+            let handler = |copied_bytes, total_bytes| {
+                let item_progress = if total_bytes == 0 {
+                    1.0
+                } else {
+                    copied_bytes as f32 / total_bytes as f32
+                };
+                let total_progress = (item_progress + path_i as f32) / total_paths as f32;
+                executor::block_on(async {
+                    let _ = msg_tx
+                        .lock()
+                        .await
+                        .send(Message::PendingProgress(id, 100.0 * total_progress))
+                        .await;
+                })
+            };
+
+            if from == to {
+                log::info!(
+                    "Skipping {} of {:?} to itself",
+                    if moving { "move" } else { "copy" },
+                    from
+                );
+                handler(0, 0);
+                continue;
+            }
+
+            if from.is_dir() {
+                let options = fs_extra::dir::CopyOptions::default().copy_inside(true);
+                if moving {
+                    fs_extra::move_items_with_progress(
+                        &[from],
+                        to,
+                        &options,
+                        |progress: fs_extra::TransitProcess| {
+                            handler(progress.copied_bytes, progress.total_bytes);
+                            handle_progress_state(&msg_tx, &progress)
+                        },
+                    )?;
+                } else {
+                    fs_extra::copy_items_with_progress(
+                        &[from],
+                        to,
+                        &options,
+                        |progress: fs_extra::TransitProcess| {
+                            handler(progress.copied_bytes, progress.total_bytes);
+                            handle_progress_state(&msg_tx, &progress)
+                        },
+                    )?;
+                }
+            } else {
+                let mut options = fs_extra::file::CopyOptions::default();
+                if to.exists() {
+                    match handle_replace(&msg_tx, from.clone(), to.clone(), false) {
+                        ReplaceResult::Replace(_) => {
+                            options.overwrite = true;
+                        }
+                        ReplaceResult::KeepBoth => {
+                            match to.parent() {
+                                Some(to_parent) => {
+                                    to = copy_unique_path(&from, &to_parent);
+                                }
+                                None => {
+                                    log::warn!("failed to get parent of {:?}", to);
+                                    //TODO: error?
+                                }
+                            }
+                        }
+                        ReplaceResult::Skip(_) => {
+                            options.skip_exist = true;
+                        }
+                        ReplaceResult::Cancel => {
+                            //TODO: be silent, but collect actual changes made for undo
+                            continue;
+                        }
+                    }
+                }
+                if moving {
+                    //TODO: optimize to fs::rename when possible
+                    fs_extra::file::move_file_with_progress(
+                        from,
+                        to,
+                        &options,
+                        |progress: fs_extra::file::TransitProcess| {
+                            handler(progress.copied_bytes, progress.total_bytes);
+                        },
+                    )?;
+                } else {
+                    fs_extra::file::copy_with_progress(
+                        from,
+                        to,
+                        &options,
+                        |progress: fs_extra::file::TransitProcess| {
+                            handler(progress.copied_bytes, progress.total_bytes);
+                        },
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    })
+    .await
+    .map_err(err_str)?
+    .map_err(err_str)
 }
 
 fn copy_unique_path(from: &Path, to: &Path) -> PathBuf {
+    // List of compound extensions to check
+    const COMPOUND_EXTENSIONS: &[&str] = &[
+        ".tar.gz",
+        ".tar.bz2",
+        ".tar.xz",
+        ".tar.zst",
+        ".tar.lz",
+        ".tar.lzma",
+        ".tar.sz",
+        ".tar.lzo",
+        ".tar.br",
+        ".tar.Z",
+        ".tar.pz",
+    ];
+
     let mut to = to.to_owned();
-    // Separate the full file name into its file name plus extension.
-    // `[Path::file_stem]` returns the full name for dotfiles (e.g.
-    // .someconf is the file name)
-    if let (Some(stem), ext) = (
-        // FIXME: Replace `[Path::file_stem]` with `[Path::file_prefix]` when stablized to handle .tar.gz et al. better
-        from.file_stem().and_then(|name| name.to_str()),
-        from.extension()
-            .and_then(|ext| ext.to_str())
-            .unwrap_or_default(),
-    ) {
-        // '.' needs to be re-added for paths with extensions.
-        let dot = if ext.is_empty() { "" } else { "." };
-        let mut n = 0u32;
-        // Loop until a valid `copy n` variant is found
-        loop {
-            n = if let Some(n) = n.checked_add(1) {
-                n
+    if let Some(file_name) = from.file_name().and_then(|name| name.to_str()) {
+        let (stem, ext) = if from.is_dir() {
+            (file_name.to_string(), None)
+        } else {
+            let file_name = file_name.to_string();
+            COMPOUND_EXTENSIONS
+                .iter()
+                .find(|&&ext| file_name.ends_with(ext))
+                .map(|&ext| {
+                    (
+                        file_name.strip_suffix(ext).unwrap().to_string(),
+                        Some(ext[1..].to_string()),
+                    )
+                })
+                .unwrap_or_else(|| {
+                    from.file_stem()
+                        .and_then(|s| s.to_str())
+                        .map(|stem| {
+                            (
+                                stem.to_string(),
+                                from.extension()
+                                    .and_then(|e| e.to_str())
+                                    .map(|e| e.to_string()),
+                            )
+                        })
+                        .unwrap_or((file_name, None))
+                })
+        };
+
+        for n in 0.. {
+            let new_name = if n == 0 {
+                file_name.to_string()
             } else {
-                // TODO: Return error? fs_extra will handle it anyway
-                break to;
+                match ext {
+                    Some(ref ext) => format!("{} ({} {}).{}", stem, fl!("copy_noun"), n, ext),
+                    None => format!("{} ({} {})", stem, fl!("copy_noun"), n),
+                }
             };
 
-            // Rebuild file name
-            let new_name = format!("{stem} ({} {n}){dot}{ext}", fl!("copy_noun"));
-            to = to.join(new_name);
+            to = to.join(&new_name);
 
             if !matches!(to.try_exists(), Ok(true)) {
-                break to;
+                break;
             }
             // Continue if a copy with index exists
             to.pop();
         }
-    } else {
-        to
     }
+    to
 }
 
 fn file_name<'a>(path: &'a Path) -> Cow<'a, str> {
@@ -293,6 +479,9 @@ impl Operation {
                 fl!("renaming", from = file_name(from), to = file_name(to))
             }
             Self::Restore { paths } => fl!("restoring", items = paths.len()),
+            Self::SetExecutableAndLaunch { path } => {
+                fl!("setting-executable-and-launching", name = file_name(path))
+            }
         }
     }
 
@@ -341,6 +530,9 @@ impl Operation {
             ),
             Self::Rename { from, to } => fl!("renamed", from = file_name(from), to = file_name(to)),
             Self::Restore { paths } => fl!("restored", items = paths.len()),
+            Self::SetExecutableAndLaunch { path } => {
+                fl!("set-executable-and-launched", name = file_name(path))
+            }
         }
     }
 
@@ -477,104 +669,7 @@ impl Operation {
                 .map_err(err_str)?;
             }
             Self::Copy { paths, to } => {
-                // Handle duplicate file names by renaming paths
-                let (paths, to): (Vec<_>, Vec<_>) = tokio::task::spawn_blocking(move || {
-                    paths
-                        .into_iter()
-                        .zip(std::iter::repeat(to.as_path()))
-                        .map(|(from, to)| {
-                            if matches!(from.parent(), Some(parent) if parent == to) {
-                                // `from`'s parent is equal to `to` which means we're copying to the same
-                                // directory (duplicating files)
-                                let to = copy_unique_path(&from, &to);
-                                (from, to)
-                            } else if let Some(name) =
-                                from.is_file().then(|| from.file_name()).flatten()
-                            {
-                                let to = to.join(name);
-                                (from, to)
-                            } else {
-                                (from, to.to_owned())
-                            }
-                        })
-                        .unzip()
-                })
-                .await
-                .unwrap();
-
-                let msg_tx = msg_tx.clone();
-                tokio::task::spawn_blocking(move || -> fs_extra::error::Result<()> {
-                    log::info!("Copy {:?} to {:?}", paths, to);
-                    let total_paths = paths.len();
-                    for (path_i, (from, mut to)) in
-                        paths.into_iter().zip(to.into_iter()).enumerate()
-                    {
-                        let handler = |copied_bytes, total_bytes| {
-                            let item_progress = copied_bytes as f32 / total_bytes as f32;
-                            let total_progress =
-                                (item_progress + path_i as f32) / total_paths as f32;
-                            executor::block_on(async {
-                                let _ = msg_tx
-                                    .lock()
-                                    .await
-                                    .send(Message::PendingProgress(id, 100.0 * total_progress))
-                                    .await;
-                            })
-                        };
-
-                        if from.is_dir() {
-                            let options = fs_extra::dir::CopyOptions::default().copy_inside(true);
-                            fs_extra::copy_items_with_progress(
-                                &[from],
-                                to,
-                                &options,
-                                |progress: fs_extra::TransitProcess| {
-                                    handler(progress.copied_bytes, progress.total_bytes);
-                                    handle_progress_state(&msg_tx, &progress)
-                                },
-                            )?;
-                        } else {
-                            let mut options = fs_extra::file::CopyOptions::default();
-                            if to.exists() {
-                                match handle_replace(&msg_tx, from.clone(), to.clone(), false) {
-                                    ReplaceResult::Replace(_) => {
-                                        options.overwrite = true;
-                                    }
-                                    ReplaceResult::KeepBoth => {
-                                        match to.parent() {
-                                            Some(to_parent) => {
-                                                to = copy_unique_path(&from, &to_parent);
-                                            }
-                                            None => {
-                                                log::warn!("failed to get parent of {:?}", to);
-                                                //TODO: error?
-                                            }
-                                        }
-                                    }
-                                    ReplaceResult::Skip(_) => {
-                                        options.skip_exist = true;
-                                    }
-                                    ReplaceResult::Cancel => {
-                                        //TODO: be silent, but collect actual changes made for undo
-                                        continue;
-                                    }
-                                }
-                            }
-                            fs_extra::file::copy_with_progress(
-                                from,
-                                to,
-                                &options,
-                                |progress: fs_extra::file::TransitProcess| {
-                                    handler(progress.copied_bytes, progress.total_bytes);
-                                },
-                            )?;
-                        }
-                    }
-                    Ok(())
-                })
-                .await
-                .map_err(err_str)?
-                .map_err(err_str)?;
+                copy_or_move(paths, to, false, id, msg_tx).await?;
             }
             Self::Delete { paths } => {
                 let total = paths.len();
@@ -637,35 +732,55 @@ impl Operation {
 
                         let to = to.to_owned();
 
-                        if let Some(file_stem) = path.file_stem() {
-                            let mut new_dir = to.join(file_stem);
+                        if let Some(file_name) = path.file_name().and_then(|f| f.to_str()) {
+                            let dir_name = get_directory_name(file_name);
+                            let mut new_dir = to.join(dir_name);
+
                             if new_dir.exists() {
-                                let mut extensionless_path = path.to_owned();
-                                extensionless_path.set_extension("");
                                 if let Some(new_dir_parent) = new_dir.parent() {
-                                    new_dir = copy_unique_path(&extensionless_path, new_dir_parent);
+                                    new_dir = copy_unique_path(&new_dir, new_dir_parent);
                                 }
                             }
 
                             let mime = mime_for_path(&path);
                             match mime.essence_str() {
-                                "application/x-compressed-tar" => fs::File::open(path)
-                                    .map(io::BufReader::new)
-                                    .map(flate2::read::GzDecoder::new)
-                                    .map(tar::Archive::new)
-                                    .and_then(|mut archive| archive.unpack(new_dir))
-                                    .map_err(err_str)?,
+                                "application/gzip" | "application/x-compressed-tar" => {
+                                    fs::File::open(path)
+                                        .map(io::BufReader::new)
+                                        .map(flate2::read::GzDecoder::new)
+                                        .map(tar::Archive::new)
+                                        .and_then(|mut archive| archive.unpack(&new_dir))
+                                        .map_err(err_str)?
+                                }
                                 "application/x-tar" => fs::File::open(path)
                                     .map(io::BufReader::new)
                                     .map(tar::Archive::new)
-                                    .and_then(|mut archive| archive.unpack(new_dir))
+                                    .and_then(|mut archive| archive.unpack(&new_dir))
                                     .map_err(err_str)?,
                                 "application/zip" => fs::File::open(path)
                                     .map(io::BufReader::new)
                                     .map(zip::ZipArchive::new)
                                     .map_err(err_str)?
-                                    .and_then(|mut archive| archive.extract(new_dir))
+                                    .and_then(|mut archive| archive.extract(&new_dir))
                                     .map_err(err_str)?,
+                                #[cfg(feature = "bzip2")]
+                                "application/x-bzip" | "application/x-bzip-compressed-tar" => {
+                                    fs::File::open(path)
+                                        .map(io::BufReader::new)
+                                        .map(bzip2::read::BzDecoder::new)
+                                        .map(tar::Archive::new)
+                                        .and_then(|mut archive| archive.unpack(new_dir))
+                                        .map_err(err_str)?
+                                }
+                                #[cfg(feature = "liblzma")]
+                                "application/x-xz" | "application/x-xz-compressed-tar" => {
+                                    fs::File::open(path)
+                                        .map(io::BufReader::new)
+                                        .map(liblzma::read::XzDecoder::new)
+                                        .map(tar::Archive::new)
+                                        .and_then(|mut archive| archive.unpack(new_dir))
+                                        .map_err(err_str)?
+                                }
                                 _ => Err(format!("unsupported mime type {:?}", mime))?,
                             }
                         }
@@ -678,28 +793,7 @@ impl Operation {
                 .map_err(err_str)?;
             }
             Self::Move { paths, to } => {
-                let msg_tx = msg_tx.clone();
-                tokio::task::spawn_blocking(move || {
-                    log::info!("Move {:?} to {:?}", paths, to);
-                    let options = fs_extra::dir::CopyOptions::default();
-                    fs_extra::move_items_with_progress(&paths, &to, &options, |progress| {
-                        executor::block_on(async {
-                            let _ = msg_tx
-                                .lock()
-                                .await
-                                .send(Message::PendingProgress(
-                                    id,
-                                    100.0 * (progress.copied_bytes as f32)
-                                        / (progress.total_bytes as f32),
-                                ))
-                                .await;
-                        });
-                        handle_progress_state(&msg_tx, &progress)
-                    })
-                })
-                .await
-                .map_err(err_str)?
-                .map_err(err_str)?;
+                copy_or_move(paths, to, true, id, msg_tx).await?;
             }
             Self::NewFolder { path } => {
                 tokio::task::spawn_blocking(|| fs::create_dir(path))
@@ -758,6 +852,33 @@ impl Operation {
                         ))
                         .await;
                 }
+            }
+            Self::SetExecutableAndLaunch { path } => {
+                tokio::task::spawn_blocking(move || -> io::Result<()> {
+                    //TODO: what to do on non-Unix systems?
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        let mut perms = fs::metadata(&path)?.permissions();
+                        let current_mode = perms.mode();
+                        let new_mode = current_mode | 0o111;
+                        perms.set_mode(new_mode);
+                        fs::set_permissions(&path, perms)?;
+                    }
+
+                    let mut command = std::process::Command::new(path);
+                    spawn_detached(&mut command)?;
+
+                    Ok(())
+                })
+                .await
+                .map_err(err_str)?
+                .map_err(err_str)?;
+                let _ = msg_tx
+                    .lock()
+                    .await
+                    .send(Message::PendingProgress(id, 100.0))
+                    .await;
             }
         }
 

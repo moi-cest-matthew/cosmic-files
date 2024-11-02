@@ -9,10 +9,21 @@ notification-in-progress = File operations are in progress.
 trash = Trash
 recents = Recents
 undo = Undo
+today = Today
+
+# Desktop view options
+desktop-view-options = Desktop view options...
+show-on-desktop = Show on Desktop
+desktop-folder-content = Desktop folder content
+mounted-drives = Mounted drives
+trash-folder-icon = Trash folder icon
+icon-size-and-spacing = Icon size and spacing
+icon-size = Icon size
 
 # List view
 name = Name
 modified = Modified
+trashed-on = Trashed
 size = Size
 
 # Dialogs
@@ -23,6 +34,9 @@ create-archive = Create archive
 ## Empty Trash Dialog
 empty-trash = Empty trash
 empty-trash-warning = Are you sure you want to permanently delete all the items in Trash?
+
+## Mount Error Dialog
+mount-error = Unable to access drive
 
 ## New File/Folder Dialog
 create-new-file = Create new file
@@ -49,13 +63,17 @@ open-multiple-folders = Open multiple folders
 save = Save
 save-file = Save file
 
+## Open With Dialog
+open-with-title = How do you want to open "{$name}"?
+browse-store = Browse {$store}
+
 ## Rename Dialog
 rename-file = Rename file
 rename-folder = Rename folder
 
 ## Replace Dialog
 replace = Replace
-replace-title = {$filename} already exists in this location.
+replace-title = "{$filename}" already exists in this location.
 replace-warning = Do you want to replace it with the one you are saving? Replacing it will overwrite its content.
 replace-warning-operation = Do you want to replace it? Replacing it will overwrite its content.
 original-file = Original file
@@ -63,6 +81,11 @@ replace-with = Replace with
 apply-to-all = Apply to all
 keep-both = Keep both
 skip = Skip
+
+## Set as Executable and Launch Dialog
+set-executable-and-launch = Set as executable and launch
+set-executable-and-launch-description = Do you want to set "{$name}" as executable and launch it?
+set-and-launch = Set and launch
 
 ## Metadata Dialog
 owner = Owner
@@ -112,42 +135,44 @@ complete = Complete
 compressing = Compressing {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
+    } from "{$from}" to "{$to}"
 compressed = Compressed {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
+    } from "{$from}" to "{$to}"
 copy_noun = Copy
-creating = Creating {$name} in {$parent}
-created = Created {$name} in {$parent}
+creating = Creating "{$name}" in "{$parent}"
+created = Created "{$name}" in "{$parent}"
 copying = Copying {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
+    } from "{$from}" to "{$to}"
 copied = Copied {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
+    } from "{$from}" to "{$to}"
 emptying-trash = Emptying {trash}
 emptied-trash = Emptied {trash}
 extracting = Extracting {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
+    } from "{$from}" to "{$to}"
 extracted = Extracted {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
+    } from "{$from}" to "{$to}"
+setting-executable-and-launching = Setting "{$name}" as executable and launching
+set-executable-and-launched = Set "{$name}" as executable and launched
 moving = Moving {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
+    } from "{$from}" to "{$to}"
 moved = Moved {$items} {$items ->
         [one] item
         *[other] items
-    } from {$from} to {$to}
-renaming = Renaming {$from} to {$to}
-renamed = Renamed {$from} to {$to}
+    } from "{$from}" to "{$to}"
+renaming = Renaming "{$from}" to "{$to}"
+renamed = Renamed "{$from}" to "{$to}"
 restoring = Restoring {$items} {$items ->
         [one] item
         *[other] items
@@ -167,15 +192,6 @@ show-details = Show details
 
 ## Settings
 settings = Settings
-settings-tab = Tab
-settings-show-hidden = Show hidden files
-default-view = Default view
-icon-size-list = Icon size (list)
-icon-size-grid = Icon size (grid)
-sorting-name = Sort by
-direction = Direction
-ascending = Ascending
-descending = Descending
 
 ### Appearance
 appearance = Appearance
@@ -197,6 +213,12 @@ remove-from-sidebar = Remove from sidebar
 sort-by-name = Sort by name
 sort-by-modified = Sort by modified
 sort-by-size = Sort by size
+sort-by-trashed = Sort by delete time
+
+## Desktop
+change-wallpaper = Change wallpaper...
+desktop-appearance = Desktop appearance...
+display-settings = Display settings...
 
 # Menu
 
@@ -205,7 +227,6 @@ file = File
 new-tab = New tab
 new-window = New window
 rename = Rename...
-menu-show-details = Show details...
 close-tab = Close tab
 quit = Quit
 
@@ -225,6 +246,7 @@ grid-view = Grid view
 list-view = List view
 show-hidden-files = Show hidden files
 list-directories-first = List directories first
+gallery-preview = Gallery preview
 menu-settings = Settings...
 menu-about = About COSMIC Files...
 
